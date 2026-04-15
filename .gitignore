@@ -1,0 +1,17 @@
+
+# large generated data
+/data/processed/
+*.pkl
+
+/data/processed/
+__pycache__/
+*.pyc
+
+/data/processed/
+__pycache__/
+*.pyc
+
+/data/processed/
+__pycache__/
+*.pyc
+*.pkl
