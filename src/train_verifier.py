@@ -1,19 +1,22 @@
 import os
+
+import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-import pandas as pd
-from transformers import BlipProcessor, BlipModel
-from tqdm import tqdm
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from utils import build_verification_examples
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
+from transformers import BlipProcessor, BlipModel
+
 from models import Verifier
+from utils import build_verification_examples
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
 blip = BlipModel.from_pretrained("Salesforce/blip-vqa-base").to(DEVICE)
 blip.eval()
+
 
 class VDataset(Dataset):
     def __init__(self, data):
@@ -25,6 +28,7 @@ class VDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
+
 def collate(batch):
     images = [x["image"] for x in batch]
     texts = [x["question"] + " " + x["candidate"] for x in batch]
@@ -35,9 +39,34 @@ def collate(batch):
         text=texts,
         return_tensors="pt",
         padding=True,
-        truncation=True
+        truncation=True,
     )
     return proc, labels
+
+
+def _extract_tensor_embedding(emb, fallback_output, which: str) -> torch.Tensor:
+    """
+    Convert BLIP output into a 2D tensor [batch, hidden_dim].
+    Handles tensor outputs and nested model outputs.
+    """
+    if isinstance(emb, torch.Tensor):
+        tensor = emb
+    elif hasattr(emb, "pooler_output") and emb.pooler_output is not None:
+        tensor = emb.pooler_output
+    elif hasattr(emb, "last_hidden_state") and emb.last_hidden_state is not None:
+        tensor = emb.last_hidden_state.mean(dim=1)
+    elif fallback_output is not None and hasattr(fallback_output, "pooler_output") and fallback_output.pooler_output is not None:
+        tensor = fallback_output.pooler_output
+    elif fallback_output is not None and hasattr(fallback_output, "last_hidden_state") and fallback_output.last_hidden_state is not None:
+        tensor = fallback_output.last_hidden_state.mean(dim=1)
+    else:
+        raise TypeError(f"Unexpected {which} embedding type: {type(emb)}")
+
+    if tensor.dim() == 3:
+        tensor = tensor.mean(dim=1)
+
+    return tensor
+
 
 def get_emb(proc):
     proc = {k: v.to(DEVICE) for k, v in proc.items()}
@@ -45,21 +74,19 @@ def get_emb(proc):
     with torch.no_grad():
         out = blip(**proc, return_dict=True)
 
-        img_emb = out.image_embeds
-        txt_emb = out.text_embeds
-
-        # Safety for version differences
-        if hasattr(img_emb, "last_hidden_state"):
-            img_emb = img_emb.last_hidden_state
-        if hasattr(txt_emb, "last_hidden_state"):
-            txt_emb = txt_emb.last_hidden_state
-
-        if img_emb.dim() == 3:
-            img_emb = img_emb.mean(dim=1)
-        if txt_emb.dim() == 3:
-            txt_emb = txt_emb.mean(dim=1)
+        img_emb = _extract_tensor_embedding(
+            getattr(out, "image_embeds", None),
+            getattr(out, "vision_model_output", None),
+            "image",
+        )
+        txt_emb = _extract_tensor_embedding(
+            getattr(out, "text_embeds", None),
+            getattr(out, "text_model_output", None),
+            "text",
+        )
 
     return img_emb, txt_emb
+
 
 def evaluate_model(model, val_loader):
     model.eval()
@@ -70,7 +97,6 @@ def evaluate_model(model, val_loader):
             img, txt = get_emb(proc)
             logits = model(img, txt).squeeze(-1)
             pred = (torch.sigmoid(logits) > 0.5).int().cpu().tolist()
-
             preds.extend(pred)
             true.extend(labels.int().tolist())
 
@@ -78,8 +104,8 @@ def evaluate_model(model, val_loader):
     prec = precision_score(true, preds, zero_division=0)
     rec = recall_score(true, preds, zero_division=0)
     f1 = f1_score(true, preds, zero_division=0)
-
     return acc, prec, rec, f1
+
 
 def main():
     os.makedirs("outputs/checkpoints", exist_ok=True)
@@ -94,26 +120,26 @@ def main():
         VDataset(train_data),
         batch_size=8,
         shuffle=True,
-        collate_fn=collate
+        collate_fn=collate,
     )
     val_loader = DataLoader(
         VDataset(val_data),
         batch_size=8,
         shuffle=False,
-        collate_fn=collate
+        collate_fn=collate,
     )
 
     model = Verifier(emb_dim=512).to(DEVICE)
     loss_fn = nn.BCEWithLogitsLoss()
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    best_f1 = -1
+    best_f1 = -1.0
 
     for epoch in range(3):
         model.train()
         total_loss = 0.0
 
-        for proc, labels in tqdm(train_loader):
+        for proc, labels in tqdm(train_loader, desc=f"Epoch {epoch + 1}/3"):
             labels = labels.to(DEVICE)
 
             img, txt = get_emb(proc)
@@ -128,8 +154,8 @@ def main():
 
         acc, prec, rec, f1 = evaluate_model(model, val_loader)
         print(
-            f"Epoch {epoch+1} | "
-            f"loss={total_loss/len(train_loader):.4f} | "
+            f"Epoch {epoch + 1} | "
+            f"loss={total_loss / len(train_loader):.4f} | "
             f"acc={acc:.4f} | prec={prec:.4f} | rec={rec:.4f} | f1={f1:.4f}"
         )
 
@@ -138,6 +164,7 @@ def main():
             torch.save(model.state_dict(), "outputs/checkpoints/verifier.pt")
 
     print("✅ Verifier trained and saved")
+
 
 if __name__ == "__main__":
     main()
