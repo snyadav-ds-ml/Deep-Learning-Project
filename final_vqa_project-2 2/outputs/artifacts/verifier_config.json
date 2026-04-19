@@ -1,0 +1,5 @@
+{
+  "max_len": 40,
+  "blip_name": "Salesforce/blip-vqa-base",
+  "best_val_f1": 0.752
+}

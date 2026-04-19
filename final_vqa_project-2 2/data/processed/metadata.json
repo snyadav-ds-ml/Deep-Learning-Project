@@ -1,0 +1,17 @@
+{
+  "dataset": "merve/vqav2-small",
+  "source_split": "validation",
+  "seed": 42,
+  "counts": {
+    "train": 1600,
+    "validation": 200,
+    "test": 200
+  },
+  "columns": [
+    "multiple_choice_answer",
+    "question",
+    "image",
+    "answer",
+    "sample_id"
+  ]
+}

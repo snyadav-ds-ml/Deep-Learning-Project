@@ -1,0 +1,6 @@
+{
+  "split": "train",
+  "num_examples": 1600,
+  "exact_match": 0.7625,
+  "token_f1": 0.7825714285714285
+}

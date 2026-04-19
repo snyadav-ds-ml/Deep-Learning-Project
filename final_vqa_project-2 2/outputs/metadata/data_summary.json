@@ -1,0 +1,7 @@
+{
+  "dataset_name": "merve/vqav2-small",
+  "total_examples": 2000,
+  "train_size": 1600,
+  "validation_size": 400,
+  "task": "Visual Question Answering with answer verification"
+}

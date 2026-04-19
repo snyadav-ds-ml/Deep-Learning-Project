@@ -1,0 +1,6 @@
+{
+  "split": "validation",
+  "num_examples": 400,
+  "exact_match": 0.7775,
+  "token_f1": 0.8040833333333333
+}
