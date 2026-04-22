@@ -1,81 +1,99 @@
-# Multimodal VQA with Answer Verification
+# 🧠 Visual Question Answering with Answer Verification
 
-This final version is designed to satisfy the computer vision project rubric more cleanly.
+## 📌 Overview
 
-## Project idea
-This system uses both image data and sequence data:
-- **Image modality**: image input from VQAv2
-- **Sequence modality**: natural-language questions and generated answers
+This project builds a **Visual Question Answering (VQA)** system that not only answers questions about an image but also **checks if the answer is correct**.
 
-It contains both:
-- **Generative component**: BLIP generates an answer from image + question
-- **Discriminative component**: a verifier predicts whether a candidate answer is correct for the image-question pair
+👉 Instead of trusting the model blindly, we add a **Verifier model** to improve reliability.
 
-## Architecture
-1. `prepare_data.py`
-   - loads `merve/vqav2-small`
-   - creates train / validation / test splits
-2. `generate_answers.py`
-   - runs BLIP VQA on each split
-   - saves generated answers
-3. `train_verifier.py`
-   - builds positive and negative answer candidates
-   - uses BLIP pooled embeddings for image and text
-   - trains a binary MLP verifier
-4. `evaluate.py`
-   - evaluates generator exact-match and token-F1
-   - evaluates verifier accuracy / precision / recall / F1
-   - evaluates end-to-end selective accuracy after verifier filtering
-5. `app.py`
-   - Streamlit demo for presentation
+---
 
-## Folder structure
-```text
-final_vqa_project/
-├── app.py
-├── README.md
-├── requirements.txt
-├── data/
-│   └── processed/
-├── outputs/
-│   ├── checkpoints/
-│   ├── metrics/
-│   └── predictions/
-└── src/
-    ├── evaluate.py
-    ├── generate_answers.py
-    ├── models.py
-    ├── prepare_data.py
-    ├── train_verifier.py
-    └── utils.py
-```
+## 🚀 What This Project Does
 
-## Install
+1. Takes an **image + question**
+2. Generates an answer using a pretrained model (**BLIP**)
+3. Verifies if the answer is **correct or not**
+4. Shows the final result in a simple **Streamlit app**
+
+---
+
+## 🏗️ Architecture
+
+Image + Question → BLIP Model → Generated Answer → Verifier → ✅/❌
+
+---
+
+## 🧩 Components Explained
+
+### 1. Data Preparation (`prepare_data.py`)
+- Loads VQA dataset
+- Cleans and formats data
+- Splits into train and validation
+
+### 2. Answer Generation (`generate_answers.py`)
+- Uses BLIP (pretrained model)
+- Input: image + question  
+- Output: predicted answer
+
+### 3. Verifier Data Creation (`utils.py`)
+Creates:
+- Correct answer → label = 1  
+- Wrong answer → label = 0  
+
+### 4. Verifier Model (`models.py`)
+- Text Encoder (BiLSTM)
+- Image features (BLIP)
+- Fusion: [image, text, image * text]
+- Classifier (MLP)
+
+### 5. Training (`train_verifier.py`)
+- Binary classification using BCE Loss
+
+### 6. Evaluation (`evaluate.py`)
+- Generator: Exact Match, F1
+- Verifier: Accuracy, Precision, Recall, F1
+
+### 7. Demo App (`app.py`)
+- Built with Streamlit
+- Upload image + ask question
+- Shows answer + correctness
+
+---
+
+## 🛠️ Tech Stack
+
+- Python
+- PyTorch
+- Hugging Face Transformers
+- BLIP
+- Streamlit
+
+---
+
+## ▶️ How to Run
+
 ```bash
 pip install -r requirements.txt
-```
-
-## Run
-```bash
 python src/prepare_data.py
 python src/generate_answers.py
 python src/train_verifier.py
-python src/evaluate.py --split test
+python src/evaluate.py
 streamlit run app.py
 ```
 
-## Output artifacts for report/presentation
-- `data/processed/metadata.json`
-- `outputs/predictions/*_with_pred.pkl`
-- `outputs/checkpoints/verifier.pt`
-- `outputs/metrics/verifier_training_history.json`
-- `outputs/metrics/evaluation_test.json`
+---
 
-## What changed from the original repo
-- added a **test split**
-- fixed fragile BLIP embedding handling
-- made verifier embedding dimension dynamic
-- added real **generator + verifier + end-to-end** evaluation
-- added metrics JSON outputs for the report
-- added missing dependency for Streamlit
-- cleaned pipeline for presentation/demo use
+## 💡 Key Idea
+
+👉 Generate answer  
+👉 Then verify it  
+
+This improves reliability of VQA systems.
+
+---
+
+## 🙌 Conclusion
+
+This project demonstrates multimodal AI with answer verification.
+
+⭐ Star the repo if you like it!
